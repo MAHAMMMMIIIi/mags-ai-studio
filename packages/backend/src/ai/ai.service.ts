@@ -1,64 +1,41 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AIProvider } from './providers/ai-provider.interface';
+import { AIProvider, CompletionOptions, AIResponse, AIStreamToken } from './providers/ai-provider.interface';
 import { OpenAIProvider } from './providers/openai.provider';
-import { MockProvider } from './providers/mock.provider';
-import { CompletionOptions, AIResponse, AIStreamToken } from './providers/ai-provider.interface';
 
 @Injectable()
 export class AIService {
-  private provider: AIProvider;
+  private provider!: AIProvider;
 
   constructor(
     private configService: ConfigService,
     private openaiProvider: OpenAIProvider,
-    private mockProvider: MockProvider,
   ) {
     this.initializeProvider();
   }
 
-  /**
-   * Initialize AI provider based on config
-   */
-  private initializeProvider() {
-    const enableMock = this.configService.get('ai.enableMock');
-    const providerName = this.configService.get('ai.provider');
-
-    if (enableMock) {
-      this.provider = this.mockProvider;
+  private initializeProvider(): void {
+    const aiProvider = this.configService.get('ai.provider') || 'openai';
+    
+    if (aiProvider === 'openai') {
+      this.provider = this.openaiProvider;
     } else {
-      switch (providerName) {
-        case 'openai':
-        default:
-          this.provider = this.openaiProvider;
-      }
+      this.provider = this.openaiProvider; // Default to OpenAI
     }
   }
 
-  /**
-   * Get non-streaming completion
-   */
   async complete(options: CompletionOptions): Promise<AIResponse> {
     return this.provider.complete(options);
   }
 
-  /**
-   * Stream completion response
-   */
   async *streamCompletion(options: CompletionOptions): AsyncGenerator<AIStreamToken> {
     yield* this.provider.streamCompletion(options);
   }
 
-  /**
-   * Estimate tokens in text
-   */
   estimateTokens(text: string): number {
     return this.provider.estimateTokens(text);
   }
 
-  /**
-   * Get available models
-   */
   async getAvailableModels(): Promise<string[]> {
     return this.provider.getAvailableModels();
   }

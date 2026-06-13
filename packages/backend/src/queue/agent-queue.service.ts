@@ -1,13 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Queue, Worker } from 'bullmq';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Queue } from 'bullmq';
 
 @Injectable()
-export class AgentQueueService {
+export class AgentQueueService implements OnModuleInit {
   private readonly logger = new Logger(AgentQueueService.name);
-  private queue: Queue;
+  private queue!: Queue;
 
-  constructor(private configService: ConfigService) {
+  constructor(private configService: ConfigService) {}
+
+  async onModuleInit(): Promise<void> {
     this.initializeQueue();
   }
 
@@ -27,6 +29,10 @@ export class AgentQueueService {
 
   async addTask(taskId: string, data: any): Promise<void> {
     await this.queue.add(taskId, data);
+  }
+
+  async addWorkflow(data: any): Promise<void> {
+    await this.queue.add('workflow', data);
   }
 
   getQueue(): Queue {

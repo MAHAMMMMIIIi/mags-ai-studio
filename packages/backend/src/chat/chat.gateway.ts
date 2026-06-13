@@ -31,7 +31,7 @@ interface AuthenticatedSocket extends Socket {
 @Injectable()
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
   private activeConnections = new Map<string, Set<string>>();
@@ -163,7 +163,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch (error) {
       this.logger.error('Send message error:', error);
       client.emit('chat:error', {
-        error: error.message || 'Failed to send message',
+        error: (error as Error).message || 'Failed to send message',
         timestamp: Date.now(),
       });
     }
@@ -240,7 +240,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch (error) {
       this.logger.error('Stream error:', error);
       client.emit('chat:error', {
-        error: error.message || 'Failed to get AI response',
+        error: (error as Error).message || 'Failed to get AI response',
         timestamp: Date.now(),
       });
     }

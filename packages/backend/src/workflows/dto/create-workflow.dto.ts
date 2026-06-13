@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
 
 export class CreateWorkflowDto {
   name!: string;
@@ -10,8 +9,6 @@ export class CreateWorkflowDto {
 @Injectable()
 export class WorkflowsService {
   private readonly logger = new Logger(WorkflowsService.name);
-
-  constructor(private prisma: PrismaService) {}
 
   async create(createWorkflowDto: CreateWorkflowDto, userId: string): Promise<any> {
     this.logger.log(`Creating workflow for user ${userId}`);

@@ -22,8 +22,8 @@ export class TasksController {
    * Get task
    */
   @Get(':id')
-  async getTask(@Param('id') taskId: string, @CurrentUser() user: any) {
-    return await this.tasksService.getTaskById(taskId, user.sub);
+  async getTask(@Param('id') id: string, @CurrentUser() user: any) {
+    return await this.tasksService.getTaskById(id, user.sub);
   }
 
   /**
@@ -49,8 +49,8 @@ export class TasksController {
    */
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  async cancelTask(@Param('id') taskId: string, @CurrentUser() user: any) {
-    await this.tasksService.cancelTask(taskId, user.sub);
+  async cancelTask(@Param('id') id: string, @CurrentUser() user: any) {
+    await this.tasksService.cancelTask(id, user.sub);
     return { message: 'Task cancelled' };
   }
 
@@ -59,8 +59,8 @@ export class TasksController {
    */
   @Post(':id/retry')
   @HttpCode(HttpStatus.OK)
-  async retryTask(@Param('id') taskId: string, @CurrentUser() user: any) {
-    const taskId = await this.tasksService.retryTask(taskId, user.sub);
-    return { taskId };
+  async retryTask(@Param('id') id: string, @CurrentUser() user: any) {
+    const retryedTaskId = await this.tasksService.retryTask(id, user.sub);
+    return { taskId: retryedTaskId };
   }
 }

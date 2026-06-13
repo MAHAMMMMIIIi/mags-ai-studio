@@ -96,8 +96,8 @@ export class TasksService {
       },
     });
 
-    // Re-queue
-    await this.queueService.addTask({
+    // Re-queue with proper arguments
+    await this.queueService.addTask(updatedTask.id, {
       taskId: updatedTask.id,
       agentId: updatedTask.agentId || '',
       userId,
