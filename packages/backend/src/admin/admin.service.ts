@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { User, UserRole } from '@prisma/client';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 
 @Injectable()
@@ -75,7 +74,6 @@ export class AdminService {
   async updateUserRole(userId: string, updateUserRoleDto: UpdateUserRoleDto) {
     const { roleId } = updateUserRoleDto;
 
-    // Check if user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -84,7 +82,6 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
 
-    // Check if role exists
     const role = await this.prisma.role.findUnique({
       where: { id: roleId },
     });
@@ -93,7 +90,6 @@ export class AdminService {
       throw new NotFoundException('Role not found');
     }
 
-    // Remove all existing roles and assign new one
     await this.prisma.userRole.deleteMany({
       where: { userId },
     });
@@ -131,7 +127,6 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
 
-    // Prevent deactivating super admins
     const userRoles = await this.prisma.userRole.findMany({
       where: { userId },
       include: { role: true },
@@ -146,7 +141,6 @@ export class AdminService {
       data: { isActive: false },
     });
 
-    // Log audit
     await this.prisma.auditLog.create({
       data: {
         userId: adminId,
@@ -175,7 +169,6 @@ export class AdminService {
       data: { isActive: true },
     });
 
-    // Log audit
     await this.prisma.auditLog.create({
       data: {
         userId: adminId,

@@ -364,7 +364,7 @@ model AgentMemory {
   type         String   @db.VarChar(50)
   
   content      String   @db.Text
-  embedding    String?  @db.Text // Stored as JSON string instead of Float[]
+  embedding    String?  @db.Text
   
   relevance    Float    @default(1.0)
   accessCount  Int      @default(0)

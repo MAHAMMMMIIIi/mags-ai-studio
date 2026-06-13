@@ -48,10 +48,7 @@ export class AuthService {
       throw new ConflictException('Email or username already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(
-      password,
-      this.configService.get('security.bcryptRounds') || 10,
-    );
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await this.prisma.user.create({
       data: {
@@ -114,7 +111,7 @@ export class AuthService {
     const lockoutKey = `lockout:${email}`;
     const lockoutCount = await this.cacheManager.get<number>(lockoutKey);
 
-    if (lockoutCount && lockoutCount >= (this.configService.get('security.maxLoginAttempts') || 5)) {
+    if (lockoutCount && lockoutCount >= 5) {
       throw new UnauthorizedException('Account temporarily locked. Try again later.');
     }
 
@@ -138,22 +135,14 @@ export class AuthService {
     });
 
     if (!user) {
-      await this.cacheManager.set(
-        lockoutKey,
-        (lockoutCount || 0) + 1,
-        (this.configService.get('security.lockoutDuration') || 15) * 1000,
-      );
+      await this.cacheManager.set(lockoutKey, (lockoutCount || 0) + 1, 15 * 1000);
       throw new UnauthorizedException('Invalid email or password');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      await this.cacheManager.set(
-        lockoutKey,
-        (lockoutCount || 0) + 1,
-        (this.configService.get('security.lockoutDuration') || 15) * 1000,
-      );
+      await this.cacheManager.set(lockoutKey, (lockoutCount || 0) + 1, 15 * 1000);
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -185,7 +174,7 @@ export class AuthService {
   /**
    * Logout user
    */
-  async logout(userId: string, token: string | undefined): Promise<void> {
+  async logout(userId: string, token?: string): Promise<void> {
     if (!token) return;
 
     try {
@@ -253,32 +242,36 @@ export class AuthService {
       },
     });
 
-    const permissions = user?.userRoles
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const permissions = user.userRoles
       .flatMap((ur: any) => ur.role.permissions)
       .map((rp: any) => rp.permission.name) || [];
 
-    const roles = user?.userRoles.map((ur: any) => ur.role.name) || [];
+    const roles = user.userRoles.map((ur: any) => ur.role.name) || [];
 
     const accessToken = this.jwtService.sign(
       {
-        sub: user?.id,
-        email: user?.email,
-        username: user?.username,
+        sub: user.id,
+        email: user.email,
+        username: user.username,
         roles,
         permissions,
       },
       {
-        expiresIn: this.configService.get('jwt.expirationTime') || '15m',
+        expiresIn: '15m',
       },
     );
 
     const refreshToken = this.jwtService.sign(
       {
-        sub: user?.id,
+        sub: user.id,
         type: 'refresh',
       },
       {
-        expiresIn: this.configService.get('jwt.refreshTokenExpiration') || '7d',
+        expiresIn: '7d',
       },
     );
 
@@ -289,12 +282,8 @@ export class AuthService {
    * Validate password strength
    */
   private validatePasswordStrength(password: string): void {
-    const minLength = this.configService.get('security.passwordMinLength') || 8;
-
-    if (password.length < minLength) {
-      throw new BadRequestException(
-        `Password must be at least ${minLength} characters long`,
-      );
+    if (password.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters long');
     }
   }
 
