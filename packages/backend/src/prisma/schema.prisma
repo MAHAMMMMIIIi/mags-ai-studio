@@ -8,9 +8,9 @@ datasource db {
 }
 
 // ============================================================================
-// PHASES 1-7: Previous models (User, Chat, Agent, Repository, App, etc.)
+// PHASES 1-8: Previous models (User, Chat, Agent, etc.)
 // ============================================================================
-// (All existing models from Phases 1-7 remain unchanged)
+// (All existing models from Phases 1-8 remain unchanged)
 
 model User {
   id            String        @id @default(cuid())
@@ -24,350 +24,324 @@ model User {
   phone         String?       @db.VarChar(20)
   emailVerified Boolean       @default(false)
   isActive      Boolean       @default(true)
-  isSuspended   Boolean       @default(false) // Security: account suspension
-  suspendedUntil DateTime?    // Security: temporary suspension until
-  failedLoginAttempts Int     @default(0) // Security: brute force tracking
-  lastFailedLoginAt DateTime? // Security: last failed login time
   lastLoginAt   DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  // Relations - Phases 3-7
+  // Relations - Phases 3-8
   userRoles      UserRole[]    @relation("UserRoles")
   sessions       Session[]     @relation("UserSessions")
   chats          Chat[]        @relation("UserChats")
   agents         Agent[]       @relation("UserAgents")
   repositories   Repository[]  @relation("UserRepositories")
   apps           GeneratedApp[] @relation("UserApps")
-
-  // Relations - Phase 8
   securityEvents SecurityEvent[] @relation("UserSecurityEvents")
-  auditLogs      AuditLog[]    @relation("UserAuditLogs")
-  threats        ThreatDetection[] @relation("UserThreats")
-  sessionLogs    UserSessionLog[] @relation("UserSessionLogs")
-  alerts         SecurityAlert[] @relation("UserAlerts")
-  anomalyScores  AnomalyScore[] @relation("UserAnomalyScores")
-  complianceLogs ComplianceLog[] @relation("UserComplianceLogs")
-  deletionRequests DataDeletionRequest[] @relation("UserDeletionRequests")
+
+  // Relations - Phase 9
+  testRuns       TestRun[]     @relation("UserTestRuns")
+  bugReports     BugReport[]   @relation("UserBugReports")
+  qaReports      QAReport[]    @relation("UserQAReports")
 
   @@index([email])
   @@index([username])
-  @@index([isSuspended])
   @@map("users")
 }
 
-// (Previous models from Phases 3-7)
+// (Previous models from Phases 3-8)
 
 // ============================================================================
-// PHASE 8: Security Center System (NEW)
+// PHASE 9: Testing Center System (NEW)
 // ============================================================================
 
-model SecurityEvent {
-  id            String   @id @default(cuid())
-  userId        String
-  
-  // Event classification
-  eventType     String   @db.VarChar(100) // "login", "logout", "failed_auth", "api_call", "admin_action", "data_modification", "anomaly"
-  category      String   @db.VarChar(50) // "auth", "api", "admin", "system", "data"
-  
-  // Event details
-  description   String   @db.Text
-  
-  // Context
-  ipAddress     String?  @db.VarChar(45) // IPv4 or IPv6
-  userAgent     String?  @db.Text
-  deviceId      String?  @db.VarChar(100)
-  
-  // Metadata
-  metadata      Json?
-  
-  // Risk assessment
-  initialRiskScore Int   @default(0) // 0-100
-  
-  // Storage control
-  isAuditable   Boolean  @default(true) // Should be included in audit logs
-  
-  createdAt     DateTime @default(now())
-
-  // Relations
-  user          User     @relation("UserSecurityEvents", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([eventType])
-  @@index([category])
-  @@index([createdAt])
-  @@map("security_events")
-}
-
-model AuditLog {
-  id            String   @id @default(cuid())
-  userId        String
-  
-  // Audit details
-  action        String   @db.VarChar(100) // "user_login", "file_created", "user_deleted", etc.
-  resourceType  String   @db.VarChar(50) // "user", "file", "settings", "app", etc.
-  resourceId    String?  @db.VarChar(100) // What was affected
-  
-  // Change tracking
-  changesBefore Json?    // Previous state
-  changesAfter  Json?    // New state
-  
-  // Context
-  ipAddress     String?  @db.VarChar(45)
-  userAgent     String?  @db.Text
-  
-  // Immutability
-  previousHash  String?  @db.VarChar(64) // Hash of previous log for chain
-  logHash       String   @db.VarChar(64) // Hash of this log (immutability proof)
-  
-  // Compliance
-  complianceRelevant Boolean @default(false) // GDPR, etc.
-  
-  createdAt     DateTime @default(now())
-
-  // Relations
-  user          User     @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([action])
-  @@index([resourceType])
-  @@index([createdAt])
-  @@map("audit_logs")
-}
-
-model ThreatDetection {
-  id            String   @id @default(cuid())
-  userId        String
-  
-  // Threat classification
-  threatType    String   @db.VarChar(100) // "brute_force", "suspicious_login", "rate_anomaly", "data_access_anomaly"
-  severity      String   @db.VarChar(20) @default("low") // "critical", "high", "medium", "low"
-  
-  // Detection details
-  description   String   @db.Text
-  indicators    String[] @default([]) // List of indicators detected
-  
-  // Scoring
-  confidenceScore Float  @default(0.0) // 0.0-1.0: how confident we are
-  riskScore      Int     @default(0) // 0-100: overall risk
-  
-  // Action taken
-  actionTaken   String?  @db.VarChar(100) // "blocked", "alerted", "throttled", null
-  
-  // Status
-  status        String   @db.VarChar(50) @default("detected") // "detected", "investigating", "resolved", "false_positive"
-  
-  createdAt     DateTime @default(now())
-  resolvedAt    DateTime?
-
-  // Relations
-  user          User     @relation("UserThreats", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([threatType])
-  @@index([severity])
-  @@index([status])
-  @@index([createdAt])
-  @@map("threat_detections")
-}
-
-model SecurityRule {
+model TestSuite {
   id            String   @id @default(cuid())
   
-  // Rule definition
   name          String   @db.VarChar(255)
   description   String?  @db.Text
   
-  // Rule logic (JSON-based condition)
-  condition     Json     // { "eventType": "login", "failedCount": { "gt": 5 }, "timeWindow": 300 }
+  // Suite configuration
+  suiteType     String   @db.VarChar(50) // "unit", "integration", "e2e", "api", "load"
+  targetModule  String?  @db.VarChar(100) // e.g., "auth", "chat", "agents"
   
-  // Actions to take (array)
-  actions       Json     // [{ "type": "block", "duration": 3600 }, { "type": "alert" }]
-  
-  // Configuration
-  priority      Int      @default(50) // 1-100: higher = more important
-  isEnabled     Boolean  @default(true)
-  isSystem      Boolean  @default(false) // System rules can't be deleted
-  
-  // Usage tracking
-  triggeredCount Int     @default(0)
-  lastTriggeredAt DateTime?
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  executions    RuleExecution[] @relation("RuleExecutions")
-
-  @@index([priority])
-  @@index([isEnabled])
-  @@map("security_rules")
-}
-
-model RuleExecution {
-  id            String   @id @default(cuid())
-  ruleId        String
-  
-  // Execution context
-  eventId       String?  // What triggered this
-  result        String   @db.VarChar(50) // "matched", "not_matched", "error"
-  
-  // Actions executed
-  actionsExecuted Json? // What actions were run
-  
-  createdAt     DateTime @default(now())
-
-  // Relations
-  rule          SecurityRule @relation("RuleExecutions", fields: [ruleId], references: [id], onDelete: Cascade)
-
-  @@index([ruleId])
-  @@index([result])
-  @@map("rule_executions")
-}
-
-model UserSessionLog {
-  id            String   @id @default(cuid())
-  userId        String
-  sessionId     String   // Reference to Session (Phase 3)
-  
-  // Session details
-  ipAddress     String   @db.VarChar(45)
-  deviceId      String?  @db.VarChar(100)
-  deviceName    String?  @db.VarChar(255)
-  
-  // Geolocation (inferred)
-  country       String?  @db.VarChar(2)
-  city          String?  @db.VarChar(100)
-  
-  // Behavioral data
-  loginTime     DateTime
-  logoutTime    DateTime?
-  isActive      Boolean  @default(true)
-  
-  // Anomaly detection
-  isAnomalous   Boolean  @default(false) // Unusual login detected
-  anomalyReasons String[] @default([]) // ["new_location", "new_device"]
-  
-  // Termination tracking
-  wasTerminated Boolean  @default(false)
-  terminationReason String? @db.VarChar(100) // "admin", "suspicious", "timeout"
-  
-  createdAt     DateTime @default(now())
-
-  // Relations
-  user          User     @relation("UserSessionLogs", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([sessionId])
-  @@index([isActive])
-  @@index([isAnomalous])
-  @@map("user_session_logs")
-}
-
-model SecurityAlert {
-  id            String   @id @default(cuid())
-  userId        String
-  
-  // Alert information
-  title         String   @db.VarChar(255)
-  description   String   @db.Text
-  severity      String   @db.VarChar(20) // "critical", "high", "medium", "low"
-  
-  // Alert type
-  alertType     String   @db.VarChar(100) // "suspicious_login", "data_breach_attempt", etc.
+  // Test cases
+  testCaseIds   String[] @default([])
+  testCount     Int      @default(0)
   
   // Status
-  status        String   @db.VarChar(50) @default("open") // "open", "acknowledged", "resolved"
-  acknowledgedAt DateTime?
+  isActive      Boolean  @default(true)
+  isAutomated   Boolean  @default(false)
+  
+  // Metadata
+  tags          String[] @default([])
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   // Relations
-  user          User     @relation("UserAlerts", fields: [userId], references: [id], onDelete: Cascade)
+  testCases     TestCase[] @relation("SuiteTestCases")
+  testRuns      TestRun[] @relation("SuiteRuns")
+
+  @@index([suiteType])
+  @@index([targetModule])
+  @@index([isActive])
+  @@map("test_suites")
+}
+
+model TestCase {
+  id            String   @id @default(cuid())
+  suiteId       String
+  
+  // Test details
+  name          String   @db.VarChar(255)
+  description   String?  @db.Text
+  testCode      String   @db.Text // The actual test code/config
+  
+  // Test classification
+  caseType      String   @db.VarChar(50) // "happy_path", "error_case", "edge_case", "regression"
+  
+  // Expected outcomes
+  expectedResult Json    // Expected status, assertions, etc.
+  
+  // Generation metadata
+  isAIGenerated Boolean  @default(false)
+  generatedFrom String?  @db.VarChar(255) // What it was generated from
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  suite         TestSuite @relation("SuiteTestCases", fields: [suiteId], references: [id], onDelete: Cascade)
+  results       TestResult[] @relation("CaseResults")
+
+  @@index([suiteId])
+  @@index([caseType])
+  @@index([isAIGenerated])
+  @@map("test_cases")
+}
+
+model TestRun {
+  id            String   @id @default(cuid())
+  userId        String
+  suiteId       String
+  
+  // Run configuration
+  runType       String   @db.VarChar(50) // "manual", "scheduled", "ci_cd"
+  parallelCount Int      @default(1) // Number of parallel workers
+  
+  // Execution
+  status        String   @db.VarChar(50) @default("running") // running, completed, failed, aborted
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  durationMs    Int?
+  
+  // Results
+  totalTests    Int      @default(0)
+  passedTests   Int      @default(0)
+  failedTests   Int      @default(0)
+  skippedTests  Int      @default(0)
+  
+  // Metadata
+  environment   String?  @db.VarChar(50) // "staging", "production"
+  gitCommit     String?  @db.VarChar(40)
+  branch        String?  @db.VarChar(100)
+  
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user          User     @relation("UserTestRuns", fields: [userId], references: [id], onDelete: Cascade)
+  suite         TestSuite @relation("SuiteRuns", fields: [suiteId], references: [id], onDelete: Cascade)
+  results       TestResult[] @relation("RunResults")
+
+  @@index([userId])
+  @@index([suiteId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("test_runs")
+}
+
+model TestResult {
+  id            String   @id @default(cuid())
+  runId         String
+  caseId        String
+  
+  // Result
+  status        String   @db.VarChar(50) // "passed", "failed", "skipped", "error"
+  
+  // Details
+  errorMessage  String?  @db.Text
+  stackTrace    String?  @db.Text
+  duration      Int?     // Duration in ms
+  
+  // Logs
+  logs          String?  @db.Text
+  stdout        String?  @db.Text
+  stderr        String?  @db.Text
+  
+  // Assertions
+  assertions    Json?    // Details about assertions
+  
+  // Screenshots/artifacts
+  artifacts     String[] @default([]) // File paths
+  
+  createdAt     DateTime @default(now())
+
+  // Relations
+  run           TestRun @relation("RunResults", fields: [runId], references: [id], onDelete: Cascade)
+  testCase      TestCase @relation("CaseResults", fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([caseId])
+  @@index([status])
+  @@map("test_results")
+}
+
+model BugReport {
+  id            String   @id @default(cuid())
+  userId        String
+  
+  // Bug information
+  title         String   @db.VarChar(255)
+  description   String   @db.Text
+  
+  // Classification
+  severity      String   @db.VarChar(50) // "critical", "high", "medium", "low"
+  status        String   @db.VarChar(50) @default("open") // "open", "investigating", "fixed", "wontfix"
+  
+  // Source
+  source        String   @db.VarChar(50) // "automated", "manual", "user_report"
+  relatedTestId String?  // If from test failure
+  
+  // Details
+  reproducingSteps String? @db.Text
+  expectedBehavior String? @db.Text
+  actualBehavior String?  @db.Text
+  
+  // Environment
+  environment   String?  @db.VarChar(50)
+  affectedModule String?  @db.VarChar(100)
+  
+  // AI-Generated
+  suggestedFix  String?  @db.Text // AI-suggested fix
+  fixConfidence Float?   // 0-1: confidence of suggested fix
+  
+  // Tracking
+  assignedTo    String?  @db.VarChar(100)
+  priority      Int      @default(50) // 1-100
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  closedAt      DateTime?
+
+  // Relations
+  user          User     @relation("UserBugReports", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([severity])
   @@index([status])
-  @@map("security_alerts")
+  @@index([source])
+  @@map("bug_reports")
 }
 
-model AnomalyScore {
+model QAReport {
   id            String   @id @default(cuid())
   userId        String
   
-  // Score details
-  score         Int      @default(0) // 0-100: risk level
+  // Report information
+  name          String   @db.VarChar(255)
+  reportType    String   @db.VarChar(50) // "daily", "weekly", "release", "custom"
   
-  // Factors contributing to score
-  factors       Json     // { "recent_login_failures": 5, "unusual_time": true, ... }
+  // Metrics
+  totalTests    Int      @default(0)
+  passRate      Float    // 0-100
+  failureRate   Float    // 0-100
+  skipRate      Float    // 0-100
+  flakiness     Float    // % of flaky tests
   
-  // Baseline for user
-  userBaseline  Json?    // User's normal behavior patterns
+  // Coverage
+  lineCoverage  Float?   // %
+  branchCoverage Float?  // %
+  functionCoverage Float? // %
   
-  // Temporal
-  calculatedAt  DateTime @default(now())
-  expiresAt     DateTime // When this score becomes stale
-
-  // Relations
-  user          User     @relation("UserAnomalyScores", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([score])
-  @@index([calculatedAt])
-  @@map("anomaly_scores")
-}
-
-model ComplianceLog {
-  id            String   @id @default(cuid())
-  userId        String
+  // System Health
+  systemHealthScore Int?  // 0-100
+  apiAvailability Float? // %
+  performanceScore Int?   // 0-100
+  securityScore Int?     // 0-100
   
-  // Compliance event
-  eventType     String   @db.VarChar(100) // "gdpr_export_requested", "data_deletion_requested", "consent_given"
-  regulation    String   @db.VarChar(50) // "gdpr", "ccpa", etc.
+  // Findings
+  findings      Json?    // Structured findings/recommendations
+  hotspots      String[] @default([]) // Problematic areas
+  regressions   Int      @default(0) // Regression count
   
-  // Details
-  description   String   @db.Text
-  metadata      Json?
-  
-  // Status
-  status        String   @db.VarChar(50) @default("pending") // "pending", "completed", "failed"
-  completedAt   DateTime?
+  // Dates
+  periodStart   DateTime
+  periodEnd     DateTime
   
   createdAt     DateTime @default(now())
 
   // Relations
-  user          User     @relation("UserComplianceLogs", fields: [userId], references: [id], onDelete: Cascade)
+  user          User     @relation("UserQAReports", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([eventType])
-  @@index([regulation])
-  @@map("compliance_logs")
+  @@index([reportType])
+  @@index([periodStart])
+  @@map("qa_reports")
 }
 
-model DataDeletionRequest {
+model CoverageMetric {
   id            String   @id @default(cuid())
-  userId        String
   
-  // Deletion details
-  reason        String   @db.Text
-  requestedBy   String   @db.VarChar(100) // "user", "admin"
+  // Coverage details
+  filePath      String   @db.VarChar(500)
+  linesCovered  Int
+  linesTotal    Int
+  linePercentage Float
   
-  // Status
-  status        String   @db.VarChar(50) @default("pending") // "pending", "approved", "completed", "cancelled"
-  approvedBy    String?  @db.VarChar(100) // Admin who approved
-  approvedAt    DateTime?
+  branchesCovered Int?
+  branchesTotal Int?
+  branchPercentage Float?
   
-  // Execution
-  executedAt    DateTime?
-  deletedDataHash String? @db.VarChar(64) // Hash of deleted data for audit
+  functionsCovered Int?
+  functionsTotal Int?
+  functionPercentage Float?
+  
+  // Metadata
+  lastUpdated   DateTime @updatedAt
+  gitCommit     String?  @db.VarChar(40)
   
   createdAt     DateTime @default(now())
 
-  // Relations
-  user          User     @relation("UserDeletionRequests", fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([filePath, gitCommit])
+  @@index([linePercentage])
+  @@index([lastUpdated])
+  @@map("coverage_metrics")
+}
 
-  @@index([userId])
-  @@index([status])
-  @@map("data_deletion_requests")
+model TestMetric {
+  id            String   @id @default(cuid())
+  
+  // Daily metrics
+  date          DateTime @db.Date
+  
+  // Counts
+  totalTests    Int
+  passedTests   Int
+  failedTests   Int
+  flakyTests    Int
+  
+  // Performance
+  averageDuration Float? // ms
+  medianDuration Float?  // ms
+  p95Duration   Float?   // ms
+  
+  // Trends
+  passRate      Float    // %
+  failureRate   Float    // %
+  
+  createdAt     DateTime @default(now())
+
+  @@unique([date])
+  @@index([date])
+  @@index([passRate])
+  @@map("test_metrics")
 }
