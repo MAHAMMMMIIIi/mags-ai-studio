@@ -8,9 +8,9 @@ datasource db {
 }
 
 // ============================================================================
-// PHASES 1-5: Previous models (User, Agent, Task, Chat, etc.)
+// PHASES 1-6: Previous models (User, Chat, Agent, Repository, etc.)
 // ============================================================================
-// (All existing models from Phases 1-5 remain unchanged)
+// (All existing models from Phases 1-6 remain unchanged)
 
 model User {
   id            String        @id @default(cuid())
@@ -28,282 +28,265 @@ model User {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  // Relations - Phases 3-5
+  // Relations - Phases 3-6
   userRoles      UserRole[]    @relation("UserRoles")
   sessions       Session[]     @relation("UserSessions")
-  refreshTokens  RefreshToken[] @relation("UserRefreshTokens")
-  auditLogs      AuditLog[]    @relation("UserAuditLogs")
-  passwordResets PasswordReset[] @relation("UserPasswordResets")
   chats          Chat[]        @relation("UserChats")
-  chatMessages   ChatMessage[] @relation("UserChatMessages")
   agents         Agent[]       @relation("UserAgents")
-  tasks          AgentTask[]   @relation("UserTasks")
-  workflows      AgentWorkflow[] @relation("UserWorkflows")
-  agentMemories  AgentMemory[] @relation("UserMemories")
-
-  // Relations - Phase 6
   repositories   Repository[]  @relation("UserRepositories")
-  repoFiles      RepoFile[]    @relation("UserRepoFiles")
-  analysisLogs   AnalysisLog[] @relation("UserAnalysisLogs")
+
+  // Relations - Phase 7
+  apps           GeneratedApp[] @relation("UserApps")
+  buildLogs      AppBuild[]    @relation("UserBuilds")
+  deployments    Deployment[]  @relation("UserDeployments")
 
   @@index([email])
   @@index([username])
   @@map("users")
 }
 
-// (Previous models from Phases 3-5: Role, Permission, Chat, Agent, etc.)
+// (Previous models from Phases 3-6)
 
 // ============================================================================
-// PHASE 6: Repository Intelligence System (NEW)
+// PHASE 7: AI App Builder System (NEW)
 // ============================================================================
 
-model Repository {
+model GeneratedApp {
   id            String   @id @default(cuid())
   userId        String
   
   name          String   @db.VarChar(255)
   description   String?  @db.Text
-  url           String?  @db.VarChar(500) // GitHub URL or null for uploaded
+  prompt        String   @db.Text // Original user prompt
   
-  // Source information
-  source        String   @db.VarChar(50) // "github", "local"
-  owner         String?  @db.VarChar(255) // GitHub owner
-  language      String?  @db.VarChar(50) // Primary language
+  // Tech stack and configuration
+  techStack     Json     // { frontend: "nextjs", backend: "nestjs", db: "postgres" }
+  architecture  Json?    // Architecture plan
   
-  // Indexing status
-  indexStatus   String   @db.VarChar(50) @default("pending") // pending, indexing, indexed, failed
-  indexProgress Int      @default(0) // Percentage
-  lastIndexedAt DateTime?
+  // Status tracking
+  status        String   @db.VarChar(50) @default("draft") // draft, generating, ready, deployed, archived
+  generationProgress Int @default(0)
+  
+  // Versions and branches
+  currentVersionId String?
+  lastGeneratedAt DateTime?
+  lastDeployedAt  DateTime?
+  
+  // Repository linking (optional)
+  linkedRepoId  String?
   
   // Statistics
-  totalFiles    Int      @default(0)
-  totalLines    Int      @default(0)
-  totalChunks   Int      @default(0)
-  
-  // Metadata
-  isPublic      Boolean  @default(false)
-  isArchived    Boolean  @default(false)
-  commitHash    String?  @db.VarChar(40) // Latest commit indexed
+  fileCount     Int      @default(0)
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   // Relations
-  user          User     @relation("UserRepositories", fields: [userId], references: [id], onDelete: Cascade)
-  files         RepoFile[] @relation("RepoFiles")
-  chunks        CodeChunk[] @relation("RepoChunks")
-  embeddings    CodeEmbedding[] @relation("RepoEmbeddings")
-  graphNodes    RepoGraphNode[] @relation("RepoGraphNodes")
-  graphEdges    RepoGraphEdge[] @relation("RepoGraphEdges")
-  indexJobs     IndexJob[] @relation("RepoIndexJobs")
-  analyses      AnalysisLog[] @relation("RepoAnalysisLogs")
+  user          User     @relation("UserApps", fields: [userId], references: [id], onDelete: Cascade)
+  files         AppFile[] @relation("AppFiles")
+  versions      AppVersion[] @relation("AppVersions")
+  builds        AppBuild[] @relation("AppBuilds")
+  deployments   Deployment[] @relation("AppDeployments")
+  generationJobs GenerationJob[] @relation("AppGenerationJobs")
 
   @@index([userId])
-  @@index([indexStatus])
-  @@index([language])
+  @@index([status])
   @@index([createdAt])
-  @@map("repositories")
+  @@map("generated_apps")
 }
 
-model RepoFile {
+model AppFile {
+  id            String   @id @default(cuid())
+  appId         String
+  
+  path          String   @db.VarChar(500) // e.g., "packages/frontend/src/components/Button.tsx"
+  name          String   @db.VarChar(255)
+  language      String   @db.VarChar(50) // typescript, javascript, python, sql, json, yaml, etc.
+  
+  // Content and metadata
+  content       String   @db.Text // File content
+  size          Int      // File size in bytes
+  
+  // Generation metadata
+  generatedBy   String?  @db.VarChar(100) // Which service generated this (backend-gen, frontend-gen, etc.)
+  
+  // Change tracking
+  lastModifiedAt DateTime @updatedAt
+  isEdited      Boolean  @default(false) // User has manually edited
+  
+  createdAt     DateTime @default(now())
+
+  // Relations
+  app           GeneratedApp @relation("AppFiles", fields: [appId], references: [id], onDelete: Cascade)
+  editHistory   EditHistory[] @relation("FileEdits")
+
+  @@unique([appId, path])
+  @@index([appId])
+  @@index([language])
+  @@map("app_files")
+}
+
+model AppVersion {
+  id            String   @id @default(cuid())
+  appId         String
+  
+  versionNumber Int      // 1, 2, 3, etc.
+  prompt        String   @db.Text // Prompt used for this version
+  
+  // File snapshot
+  filesSnapshot Json     // Snapshot of all files at this version
+  
+  // Status
+  status        String   @db.VarChar(50) // "completed", "failed"
+  
+  // Metadata
+  generatedAt   DateTime @default(now())
+  deployedAt    DateTime?
+  
+  createdAt     DateTime @default(now())
+
+  // Relations
+  app           GeneratedApp @relation("AppVersions", fields: [appId], references: [id], onDelete: Cascade)
+
+  @@unique([appId, versionNumber])
+  @@index([appId])
+  @@map("app_versions")
+}
+
+model AppBuild {
   id            String   @id @default(cuid())
   userId        String
-  repoId        String
+  appId         String
   
-  path          String   @db.VarChar(500) // Relative path from repo root
-  name          String   @db.VarChar(255) // File name
-  language      String?  @db.VarChar(50) // JavaScript, Python, etc.
+  // Build configuration
+  buildNumber   Int
+  status        String   @db.VarChar(50) @default("pending") // pending, building, success, failed
   
-  // Content metadata
-  size          Int      // File size in bytes
-  lineCount     Int      @default(0)
+  // Build artifacts
+  logs          String?  @db.Text
+  errors        String?  @db.Text
+  warnings      String?  @db.Text
   
-  // Content (store for viewer)
-  content       String?  @db.Text // Actual file content (may be null if too large)
-  contentHash   String?  @db.VarChar(64) // SHA256 for change detection
-  
-  // Structure
-  functions     Json?    // Array of function/method definitions
-  classes       Json?    // Array of class definitions
-  imports       String[] @default([]) // Imported modules
-  exports       String[] @default([]) // Exported symbols
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  user          User     @relation("UserRepoFiles", fields: [userId], references: [id], onDelete: Cascade)
-  repository    Repository @relation("RepoFiles", fields: [repoId], references: [id], onDelete: Cascade)
-  chunks        CodeChunk[] @relation("FileChunks")
-
-  @@unique([repoId, path])
-  @@index([userId])
-  @@index([repoId])
-  @@index([language])
-  @@map("repo_files")
-}
-
-model CodeChunk {
-  id            String   @id @default(cuid())
-  repoId        String
-  fileId        String
-  
-  // Content
-  content       String   @db.Text
-  startLine     Int
-  endLine       Int
-  
-  // Type of chunk
-  chunkType     String   @db.VarChar(50) // "function", "class", "import", "generic"
-  name          String?  @db.VarChar(255) // Function/class name
-  
-  // Context
-  language      String?  @db.VarChar(50)
-  metadata      Json?    // Additional metadata (parameters, returns, etc.)
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  repository    Repository @relation("RepoChunks", fields: [repoId], references: [id], onDelete: Cascade)
-  file          RepoFile @relation("FileChunks", fields: [fileId], references: [id], onDelete: Cascade)
-  embeddings    CodeEmbedding[] @relation("ChunkEmbeddings")
-
-  @@index([repoId])
-  @@index([fileId])
-  @@index([chunkType])
-  @@map("code_chunks")
-}
-
-model CodeEmbedding {
-  id            String   @id @default(cuid())
-  repoId        String
-  chunkId       String
-  
-  // Vector embedding
-  embedding     Vector(1536) // OpenAI embeddings are 1536 dimensions
-  
-  // Metadata
-  modelUsed     String   @db.VarChar(100) // Model that generated this embedding
-  
-  createdAt     DateTime @default(now())
-
-  // Relations
-  repository    Repository @relation("RepoEmbeddings", fields: [repoId], references: [id], onDelete: Cascade)
-  chunk         CodeChunk @relation("ChunkEmbeddings", fields: [chunkId], references: [id], onDelete: Cascade)
-
-  @@index([repoId])
-  @@index([chunkId])
-  @@map("code_embeddings")
-}
-
-model RepoGraphNode {
-  id            String   @id @default(cuid())
-  repoId        String
-  
-  // Node info
-  nodeId        String   @db.VarChar(255) // Unique identifier within repo (file path, function name, etc.)
-  nodeType      String   @db.VarChar(50) // "file", "function", "class", "module"
-  label         String   @db.VarChar(255)
-  
-  // Reference
-  fileId        String?
-  
-  // Metadata
-  metadata      Json?
-  
-  createdAt     DateTime @default(now())
-
-  // Relations
-  repository    Repository @relation("RepoGraphNodes", fields: [repoId], references: [id], onDelete: Cascade)
-  file          RepoFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
-  incomingEdges RepoGraphEdge[] @relation("EdgeTarget")
-  outgoingEdges RepoGraphEdge[] @relation("EdgeSource")
-
-  @@unique([repoId, nodeId])
-  @@index([repoId])
-  @@index([nodeType])
-  @@map("repo_graph_nodes")
-}
-
-model RepoGraphEdge {
-  id            String   @id @default(cuid())
-  repoId        String
-  
-  sourceNodeId  String
-  targetNodeId  String
-  
-  // Edge type
-  edgeType      String   @db.VarChar(50) // "imports", "calls", "inherits", "references"
-  
-  // Metadata
-  metadata      Json?
-  
-  createdAt     DateTime @default(now())
-
-  // Relations
-  repository    Repository @relation("RepoGraphEdges", fields: [repoId], references: [id], onDelete: Cascade)
-  sourceNode    RepoGraphNode @relation("EdgeSource", fields: [sourceNodeId], references: [id], onDelete: Cascade)
-  targetNode    RepoGraphNode @relation("EdgeTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
-
-  @@unique([repoId, sourceNodeId, targetNodeId, edgeType])
-  @@index([repoId])
-  @@index([edgeType])
-  @@map("repo_graph_edges")
-}
-
-model IndexJob {
-  id            String   @id @default(cuid())
-  repoId        String
-  
-  jobType       String   @db.VarChar(50) // "initial_index", "re_index", "chunk_update"
-  status        String   @db.VarChar(50) @default("pending") // pending, running, completed, failed
-  
-  // Progress tracking
-  filesProcessed Int     @default(0)
-  totalFiles    Int
-  chunksGenerated Int    @default(0)
-  embeddingsGenerated Int @default(0)
-  
-  // Execution info
+  // Build stats
+  duration      Int?     // Duration in ms
   startedAt     DateTime?
   completedAt   DateTime?
-  errorMessage  String?  @db.Text
+  
+  // Artifacts
+  artifacts     Json?    // Build output information
   
   createdAt     DateTime @default(now())
 
   // Relations
-  repository    Repository @relation("RepoIndexJobs", fields: [repoId], references: [id], onDelete: Cascade)
+  user          User     @relation("UserBuilds", fields: [userId], references: [id], onDelete: Cascade)
+  app           GeneratedApp @relation("AppBuilds", fields: [appId], references: [id], onDelete: Cascade)
 
-  @@index([repoId])
+  @@unique([appId, buildNumber])
+  @@index([userId])
+  @@index([appId])
   @@index([status])
-  @@map("index_jobs")
+  @@map("app_builds")
 }
 
-model AnalysisLog {
+model Deployment {
   id            String   @id @default(cuid())
   userId        String
-  repoId        String
+  appId         String
   
-  analysisType  String   @db.VarChar(50) // "explain", "summarize", "bug_detect", "impact", "improve"
-  query         String   @db.Text
+  // Deployment info
+  deploymentNumber Int
+  provider      String   @db.VarChar(100) // "vercel", "heroku", "docker", etc.
+  environment   String   @db.VarChar(50) @default("production")
+  
+  // Status
+  status        String   @db.VarChar(50) @default("pending") // pending, deploying, live, failed, rolled_back
+  
+  // URLs and endpoints
+  liveUrl       String?  @db.VarChar(500)
+  apiUrl        String?  @db.VarChar(500)
+  
+  // Metadata
+  deployedBy    String?  // User ID who triggered deployment
+  deployedAt    DateTime?
+  duration      Int?     // Duration in ms
+  
+  // Logs
+  logs          String?  @db.Text
+  errorMessage  String?  @db.Text
+  
+  // Environment variables used
+  envVarsHash   String?  @db.VarChar(100) // Hash of used env vars for audit
+  
+  // Rollback support
+  previousDeploymentId String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User     @relation("UserDeployments", fields: [userId], references: [id], onDelete: Cascade)
+  app           GeneratedApp @relation("AppDeployments", fields: [appId], references: [id], onDelete: Cascade)
+
+  @@unique([appId, deploymentNumber])
+  @@index([userId])
+  @@index([appId])
+  @@index([status])
+  @@index([provider])
+  @@map("deployments")
+}
+
+model GenerationJob {
+  id            String   @id @default(cuid())
+  appId         String
+  
+  // Job configuration
+  jobType       String   @db.VarChar(50) // "initial_generation", "regenerate_file", "regenerate_all"
+  
+  // Status and progress
+  status        String   @db.VarChar(50) @default("pending") // pending, planning, generating, validating, completed, failed
+  progress      Int      @default(0) // Percentage
+  
+  // Tracking
+  currentStep   String?  @db.VarChar(100)
+  totalSteps    Int      @default(0)
   
   // Results
-  result        Json?    // Analysis result/response
-  confidence    Float?   // Confidence score (0-1)
-  relevantChunks String[] @default([]) // IDs of code chunks used
+  generatedFiles String[] @default([]) // File IDs generated
+  logs          String?  @db.Text
+  errors        String?  @db.Text
   
-  // Performance
-  processingTimeMs Int?
+  // Timing
+  startedAt     DateTime?
+  completedAt   DateTime?
+  duration      Int?
   
   createdAt     DateTime @default(now())
 
   // Relations
-  user          User     @relation("UserAnalysisLogs", fields: [userId], references: [id], onDelete: Cascade)
-  repository    Repository @relation("RepoAnalysisLogs", fields: [repoId], references: [id], onDelete: Cascade)
+  app           GeneratedApp @relation("AppGenerationJobs", fields: [appId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([repoId])
-  @@index([analysisType])
-  @@map("analysis_logs")
+  @@index([appId])
+  @@index([status])
+  @@map("generation_jobs")
+}
+
+model EditHistory {
+  id            String   @id @default(cuid())
+  fileId        String
+  
+  // Edit information
+  originalContent String @db.Text
+  newContent    String   @db.Text
+  
+  // AI regeneration tracking
+  regeneratedBy String?  @db.VarChar(100) // AI service that regenerated
+  
+  createdAt     DateTime @default(now())
+
+  // Relations
+  file          AppFile @relation("FileEdits", fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([createdAt])
+  @@map("edit_history")
 }
